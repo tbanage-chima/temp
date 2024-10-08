@@ -304,7 +304,7 @@ export default function Home() {
 
 interface Slot { start: Date; end: Date; }
 
-export const AvailableSlots = ({availableSlots}: {availableSlots: Slot[]}) => {
+const AvailableSlots = ({availableSlots}: {availableSlots: Slot[]}) => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedSlot, setSelectedSlot] = useState<Slot>();
 
