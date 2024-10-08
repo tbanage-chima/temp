@@ -26,26 +26,23 @@ export default function Home() {
   const [freeSlots, setFreeSlots] = useState<{ start: Date; end: Date; }[]>([]);
 
   const getCustomers = async (currentCustomer: Customer) => {
-    const options = {
-      method: 'GET',
-      url: 'https://api.housecallpro.com/customers?page_size=100',
-      headers: {
-        Accept: 'application/json', 
-        Authorization: 'Token 816e3aa168674ea18138946988fb34ff',
-      },
-    };
+    toast.loading('Fetching customers...');
     try {
-      const { data } = await axios.request(options);
-      console.log(data);
-      data.customers.map((customer: Customer) => {
-        if(customer.email === currentCustomer.email) {
+      const response = await axios.get('/api/get-customers');
+      const customers = response.data.customers;
+
+      customers.forEach((customer: Customer) => {
+        if (customer.email === currentCustomer.email) {
           setExistingCustomer(true);
           setCustomerId(customer.id);
         }
       });
-      toast.dismiss();
+
+      toast.dismiss(); // Dismisses the loading message once processing is done
     } catch (error) {
-      console.error(error);
+      toast.dismiss(); // Ensure loading toast is dismissed
+      console.error('Error checking customer:', error);
+      toast.error('Failed to fetch customers.');
     }
   }
 
@@ -58,32 +55,19 @@ export default function Home() {
   }
 
   const addCustomer = async (customer: Customer) => {
-    const options = {
-      method: 'POST',
-      url: 'https://api.housecallpro.com/customers',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        Authorization: 'Token 816e3aa168674ea18138946988fb34ff',
-      },
-      data: {
-        first_name: customer.first_name,
-        last_name: customer.last_name,
-        email: customer.email,
-        company: 'Avoca',
-        notifications_enabled: false,
-        mobile_number: customer.phone,
-      }
-    };
     toast.loading('Adding customer...');
     try {
-      const { data } = await axios.request(options);
-      console.log(data);
-      setCustomerId(data.id);
+      const response = await axios.post('/api/add-customer', customer, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      setCustomerId(response.data.id);
       toast.dismiss();
       toast.success('Customer added successfully');
     } catch (error) {
-      console.error(error);
+      console.error('Error adding customer:', error);
       toast.dismiss();
       toast.error('Failed to add customer');
     }
@@ -127,38 +111,26 @@ export default function Home() {
   }
 
   const fetchSlots = async () => {
-    const options = {
-      method: 'GET',
-      url: 'https://api.housecallpro.com/jobs?page_size=100',
-      headers: {
-        Accept: 'application/json', 
-        Authorization: 'Token 3dad8449acf144c5aa2febce00c1f9d0',
-      }
-    };
     toast.loading('Calculating free slots...');
     setLoading(true);
+
     try {
-      const { data }  = await axios.request(options);
-      console.log(data);
-      const bookedSlots = data.jobs.map((job: any) => {
-        return {
-          scheduled_start: job?.schedule?.scheduled_start,
-          scheduled_end: job?.schedule?.scheduled_end,
-        }
-      });
-      console.log("bookedSlots", bookedSlots);
+      const response = await axios.get('/api/fetch-slots');
+      const bookedSlots = response.data.bookedSlots;
+      
+      // Calculate free slots
       const freeSlotsFetched = getFreeSlots(bookedSlots);
-      console.log("freeSlots", freeSlotsFetched);
-      console.log(freeSlotsFetched);
       setFreeSlots(freeSlotsFetched);
+
       toast.dismiss();
-      toast.success("Slots calculated successfully")
+      toast.success('Slots calculated successfully');
     } catch (error) {
-      console.error(error);
+      console.error('Error fetching slots:', error);
       toast.dismiss();
-      toast.error("some error occured")
+      toast.error('Some error occurred');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   const generateRandomNumber = (min = 0, max = 9) => {
@@ -295,7 +267,7 @@ export default function Home() {
               <span className="font-normal text-lg text-gray-500">{customer?.first_name + " " + customer?.last_name}</span>
             </h1>
           </div>
-          {!loading && <AvailableSlots availableSlots={freeSlots} />}
+          {!loading && customerId && <AvailableSlots availableSlots={freeSlots} customerId={customerId} />}
         </div>
       )}
     </div>
@@ -304,7 +276,7 @@ export default function Home() {
 
 interface Slot { start: Date; end: Date; }
 
-const AvailableSlots = ({availableSlots}: {availableSlots: Slot[]}) => {
+const AvailableSlots = ({availableSlots, customerId}: {availableSlots: Slot[], customerId: string}) => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedSlot, setSelectedSlot] = useState<Slot>();
 
@@ -331,31 +303,26 @@ const AvailableSlots = ({availableSlots}: {availableSlots: Slot[]}) => {
   };
 
   const createJob = async () => {
-    const options = {
-      method: 'POST',
-      url: 'https://api.housecallpro.com/jobs',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        Authorization: 'Token 816e3aa168674ea18138946988fb34ff',
-      },
-      data: {
-        "customer_id": "cus_846c42a02a734318a556a4349ca95752",
-        "schedule": {
-          "scheduled_start": selectedSlot?.start,
-          "scheduled_end": selectedSlot?.end,
-        }
-      }
-    };
-
     toast.loading('Scheduling job...');
+
     try {
-      const { data } = await axios.request(options);
-      console.log(data);
+      const response = await axios.post('/api/create-job', {
+        customer_id: customerId,
+        schedule: {
+          scheduled_start: selectedSlot?.start,
+          scheduled_end: selectedSlot?.end,
+        }
+      }, {
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      console.log(response.data);
       toast.dismiss();
       toast.success('Job scheduled successfully');
     } catch (error) {
-      console.error(error);
+      console.error('Error scheduling job:', error);
       toast.dismiss();
       toast.error('Failed to schedule job');
     }
