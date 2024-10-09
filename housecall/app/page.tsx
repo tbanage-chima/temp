@@ -2,6 +2,7 @@
 import axios from "axios";
 import { useState } from "react";
 import { toast } from "sonner";
+import PlacesAutocomplete, { geocodeByAddress, getLatLng } from 'react-places-autocomplete';
 
 const firstName = ["John", "Jane", "Alice", "Bob", "Charlie", "David", "Eve", "Frank", "Grace", "Henry"];
 const lastName = ["Doe", "Smith", "Johnson", "Brown", "Williams", "Jones", "Garcia", "Martinez", "Hernandez", "Lopez"];
@@ -10,8 +11,7 @@ const WORKING_HOURS_END = 18;  // 6:00 PM
 
 interface Customer {
   id?: string,
-  first_name: string,
-  last_name: string,
+  name: string,
   email: string,
   phone: string,
   address: string,
@@ -133,75 +133,18 @@ export default function Home() {
     }
   }
 
-  const generateRandomNumber = (min = 0, max = 9) => {
-    return Math.floor(Math.random() * (max - min + 1) + min);
-  }
-
-  const generateCustomer = async () => {
-    const first_name = firstName[generateRandomNumber()];
-    const last_name = lastName[generateRandomNumber()];
-    const email = `${first_name.toLowerCase()}.${last_name.toLowerCase()}@gmail.com`;
-    const phone = '1234567890';
-    const address = '123 Main St';
-    setCustomer({first_name, last_name, email, phone, address});
-  }
-
   return (
     <div className="flex flex-col p-6 bg-gray-100 min-h-screen">
       {state === 'default' && (
-        <div className="mx-auto rounded-lg p-8 w-full max-w-screen-md text-center">
-          <div className="flex justify-between items-center border-b-2 border-gray-300 pb-2 mb-6">
-            <h1 className="text-2xl font-bold text-gray-800">Generate A Random Customer</h1>
-            <button
-              onClick={() => generateCustomer()}
-              className="bg-gray-900 text-white px-4 py-2 rounded-md hover:bg-black transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-            >
-              Generate
-            </button>
-          </div>
-          {customer && (
-            <div className="mx-auto w-fit mt-6 text-left text-gray-700">
-              <div className="flex gap-2 items-center">
-                <h1 className="text-lg font-semibold text-gray-700">
-                  Name:
-                </h1>
-                <span className="font-normal">{customer.first_name + " " + customer.last_name}</span>
-              </div>
-              <div className="flex gap-2 items-center mt-2">
-                <h2 className="text-lg font-semibold text-gray-700">
-                  Email:
-                </h2>
-                <span className="font-normal">{customer.email}</span>
-              </div>
-              <div className="flex gap-2 items-center mt-2">
-                <h2 className="text-lg font-semibold text-gray-700">
-                  Phone:
-                </h2>
-                <span className="font-normal">{customer.phone}</span>
-              </div>
-              <div className="flex gap-2 items-center mt-2">
-                <h2 className="text-lg font-semibold text-gray-700">
-                  Address:
-                </h2>
-                <span className="font-normal">{customer.address}</span>
-              </div>
-              <div className="flex justify-start">
-                <button
-                  onClick={() => {setState('customers'); isThisCustomer(customer)}}
-                  className="bg-gray-900 mt-4 text-white px-4 py-2 h-10 rounded-md hover:bg-black transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                >
-                  Use this customer
-                </button>
-              </div>
-            </div>
-          )}
+        <div className="mx-auto rounded-lg p-8 w-full max-w-screen-md">
+          <CustomerForm setCustomer={setCustomer} setState={setState} isThisCustomer={isThisCustomer}/>
         </div>
       )}
       {state === 'customers' && (
         <div className="w-full max-w-screen-md mx-auto">
           <div className="py-2 border-b border-gray-300">
             <h1 className="text-xl font-semibold text-gray-700">
-              <span className="font-normal text-lg text-gray-500">{customer?.first_name + " " + customer?.last_name}</span>
+              <span className="font-normal text-lg text-gray-500">{customer?.name}</span>
             </h1>
           </div>
           <div className="flex flex-col mt-4">
@@ -264,7 +207,7 @@ export default function Home() {
         <div className="w-full max-w-screen-md mx-auto">
           <div className="py-2 border-b border-gray-300">
             <h1 className="text-xl font-semibold text-gray-700">
-              <span className="font-normal text-lg text-gray-500">{customer?.first_name + " " + customer?.last_name}</span>
+              <span className="font-normal text-lg text-gray-500">{customer?.name}</span>
             </h1>
           </div>
           {!loading && customerId && <AvailableSlots availableSlots={freeSlots} customerId={customerId} />}
@@ -399,3 +342,176 @@ const AvailableSlots = ({availableSlots, customerId}: {availableSlots: Slot[], c
   );
 };
 
+
+const CustomerForm = ({setCustomer, setState, isThisCustomer}: 
+  {setCustomer: React.Dispatch<React.SetStateAction<Customer | undefined>>;
+  setState: React.Dispatch<React.SetStateAction<string>>;
+  isThisCustomer: (customer: Customer) => void;
+  }) => {
+  const [customerData, setCustomerData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    address: '',
+  });
+  const [isAddressValid, setIsAddressValid] = useState(false);
+
+  const handleInputChange = (e: any) => {
+    const { name, value } = e.target;
+    setCustomerData({ ...customerData, [name]: value });
+  };
+
+  const handleAddressChange = (address: any) => {
+    setCustomerData({ ...customerData, address });
+    // Reset address validity on change
+    setIsAddressValid(false);
+  };
+  
+  const handleAddressSelect = async (address: any) => {
+    setCustomerData({ ...customerData, address });
+    try {
+      const results = await geocodeByAddress(address);
+      const latLng = await getLatLng(results[0]);
+      console.log('Address is valid:', results[0].formatted_address);
+      console.log('Coordinates:', latLng);
+  
+      setIsAddressValid(true);
+    } catch (error) {
+      console.error('Error validating address:', error);
+      setIsAddressValid(false);
+      toast.error('Invalid address');
+    }
+  };
+
+  const handleSubmit = (e: any) => {
+    e.preventDefault();
+  
+    // Check if Name and Email are provided
+    if (!customerData.name.trim()) {
+      toast.error('Please enter a name.');
+      return;
+    }
+  
+    if (!customerData.email.trim()) {
+      toast.error('Please enter an email.');
+      return;
+    }
+  
+    // Simple email format check
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(customerData.email)) {
+      toast.error('Please enter a valid email address.');
+      return;
+    }
+  
+    // Validate Phone Number
+    const phoneRegex = /^\d{10}$/;
+    if (!phoneRegex.test(customerData.phone)) {
+      toast.error('Please enter a valid 10-digit phone number.');
+      return;
+    }
+  
+    // Check if the address is valid
+    if (!isAddressValid) {
+      toast.error('Please enter a valid address before submitting.');
+      return;
+    }
+  
+    // If all checks pass, proceed with form submission
+    toast.success('Customer data submitted successfully');
+    console.log('Customer Data:', customerData);
+    // Add form submission logic here (e.g., send data to a server or API)
+    setCustomer(customerData);
+    setState('customers');
+    isThisCustomer(customerData);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="w-full rounded-md">
+      <h2 className="text-2xl text-gray-700 font-bold mb-6 border-b-2 border-gray-300">Enter Customer Data</h2>
+      
+      <div className="mb-4">
+        <label className="block text-gray-700 mb-2">Name</label>
+        <input
+          type="text"
+          name="name"
+          value={customerData.name}
+          onChange={handleInputChange}
+          className="border text-gray-700 p-2 w-full rounded-lg bg-transparent border-gray-300 focus-visible:ring-offset-2 focus-visible:ring-gray-600 focus-visible:ring-2 focus-visible:outline-none"
+          required
+        />
+      </div>
+
+      <div className="mb-4">
+        <label className="block text-gray-700 mb-2">Email</label>
+        <input
+          type="email"
+          name="email"
+          value={customerData.email}
+          onChange={handleInputChange}
+          className="border text-gray-700 p-2 w-full rounded-lg bg-transparent border-gray-300 focus-visible:ring-offset-2 focus-visible:ring-gray-600 focus-visible:ring-2 focus-visible:outline-none"
+          required
+        />
+      </div>
+
+      <div className="mb-4">
+        <label className="block text-gray-700 mb-2">Phone</label>
+        <input
+          type="tel"
+          name="phone"
+          value={customerData.phone}
+          onChange={handleInputChange}
+          className="border text-gray-700 p-2 w-full rounded-lg bg-transparent border-gray-300 focus-visible:ring-offset-2 focus-visible:ring-gray-600 focus-visible:ring-2 focus-visible:outline-none"
+          required
+        />
+      </div>
+
+      <div className="mb-4">
+        <label className="block text-gray-700 mb-2">Address</label>
+        <PlacesAutocomplete
+          value={customerData.address}
+          onChange={handleAddressChange}
+          onSelect={handleAddressSelect}
+        >
+          {({ getInputProps, suggestions, getSuggestionItemProps, loading }) => (
+            <div>
+              <input
+                {...getInputProps({
+                  placeholder: 'Enter an address...',
+                  className: "border text-gray-700 p-2 w-full rounded-lg bg-transparent border-gray-300 focus-visible:ring-offset-2 focus-visible:ring-gray-600 focus-visible:ring-2 focus-visible:outline-none"
+                })}
+                required
+              />
+              <div className="shadow rounded-md text-gray-700 overflow-hidden mt-2">
+                {loading && <div className="p-2">Loading...</div>}
+                {suggestions.map((suggestion) => {
+                  const style = suggestion.active
+                    ? { backgroundColor: 'rgb(209 213 219)', cursor: 'pointer', padding: '8px' }
+                    : { backgroundColor: '#ffffff', cursor: 'pointer', padding: '8px' };
+
+                  return (
+                    <div
+                      {...getSuggestionItemProps(suggestion, { style })}
+                      key={suggestion.placeId}
+                    >
+                      {suggestion.description}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </PlacesAutocomplete>
+      </div>
+
+      <div className="flex justify-end">
+        <button
+          type="submit"
+          className="bg-gray-900 text-white px-4 py-2 h-10 rounded-md hover:bg-black transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+        >
+          Submit
+        </button>
+      </div>
+    </form>
+  );
+};

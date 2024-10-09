@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { Toaster } from "sonner";
+import Script from "next/script";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -29,6 +30,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDkJhsGMZY6jphUDT0Gct8wPRAYKUzF_YU&libraries=places"></script>
         {children}
         <Toaster richColors />
       </body>
